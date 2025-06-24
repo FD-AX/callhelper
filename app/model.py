@@ -16,6 +16,7 @@ from langchain.tools import StructuredTool
 
 from app.tool import send_sms
 from app.model_fields_val_models import SendSMSInput
+from app.qdrant_conn import vectorstore
 
 load_dotenv()
 
@@ -33,12 +34,6 @@ embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-
 client = QdrantClient(
     url=os.getenv("QDRANT_HOST"),
     api_key=os.getenv("QDRANT_API_KEY")
-)
-
-vectorstore = Qdrant(
-    client=client,
-    collection_name="messages",
-    embeddings=embeddings
 )
 
 tools = [
@@ -82,7 +77,11 @@ def llm_node(state: dict) -> dict:
 
 def rag_node(state: dict) -> dict:
     question = state["text"]
-    context_answer = question#rag_chain.run(question)
+    try:
+        docs = vectorstore.similarity_search(question, k=100)
+        context_answer = "\n".join(doc.page_content for doc in docs)
+    except:
+        context_answer = ""
     final_answer = llm_agent.run(f"На основе этой информации: '{context_answer}' ответь на запрос: '{question}'")
     return {"answer": final_answer}
 
